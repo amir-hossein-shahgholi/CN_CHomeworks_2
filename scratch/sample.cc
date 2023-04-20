@@ -410,16 +410,16 @@ int main(int argc, char *argv[])
   mapperApp3->SetStartTime(Seconds(0.0));
   mapperApp3->SetStopTime(Seconds(duration));
 
-  Ptr<Socket> socket1 = Socket::CreateSocket(wifiStaNodeMaster.Get(0), TcpSocketFactory::GetTypeId());
-  InetSocketAddress address1 = InetSocketAddress(staNodesMapperInterface.GetAddress(0), port);
+  Ptr<Socket> socket1 = Socket::CreateSocket(wifiStaNodeMapper.Get(0), TcpSocketFactory::GetTypeId());
+  InetSocketAddress address1 = InetSocketAddress(staNodesMasterInterface.GetAddress(0), port);
   socket1->Connect(address1);
 
-  Ptr<Socket> socket2 = Socket::CreateSocket(wifiStaNodeMaster.Get(0), TcpSocketFactory::GetTypeId());
-  InetSocketAddress address2 = InetSocketAddress(staNodesMapperInterface.GetAddress(1), port);
+  Ptr<Socket> socket2 = Socket::CreateSocket(wifiStaNodeMapper.Get(1), TcpSocketFactory::GetTypeId());
+  InetSocketAddress address2 = InetSocketAddress(staNodesMasterInterface.GetAddress(0), port);
   socket2->Connect(address2);
 
-  Ptr<Socket> socket3 = Socket::CreateSocket(wifiStaNodeMaster.Get(0), TcpSocketFactory::GetTypeId());
-  InetSocketAddress address3 = InetSocketAddress(staNodesMapperInterface.GetAddress(2), port);
+  Ptr<Socket> socket3 = Socket::CreateSocket(wifiStaNodeMapper.Get(2), TcpSocketFactory::GetTypeId());
+  InetSocketAddress address3 = InetSocketAddress(staNodesMasterInterface.GetAddress(0), port);
   socket3->Connect(address3);
   masterApp->socket1 = socket1;
   masterApp->socket2 = socket2;
