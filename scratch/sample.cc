@@ -113,16 +113,20 @@ public:
   MyHeader();
   virtual ~MyHeader();
   void SetData(uint16_t data);
+  void SetStringData(std::string data);
   uint16_t GetData(void) const;
+  std::string GetStringData(void) const;
   static TypeId GetTypeId(void);
   virtual TypeId GetInstanceTypeId(void) const;
   virtual void Print(std::ostream &os) const;
+  virtual void PrintString(std::ostream &os) const;
   virtual void Serialize(Buffer::Iterator start) const;
   virtual uint32_t Deserialize(Buffer::Iterator start);
   virtual uint32_t GetSerializedSize(void) const;
 
 private:
   uint16_t m_data;
+  std::string s_data;
 };
 
 MyHeader::MyHeader()
@@ -151,6 +155,11 @@ void MyHeader::Print(std::ostream &os) const
   os << "data = " << m_data << endl;
 }
 
+void MyHeader::PrintString(std::ostream &os) const
+{
+  os << "data = " << s_data << endl;
+}
+
 uint32_t
 MyHeader::GetSerializedSize(void) const
 {
@@ -175,17 +184,30 @@ void MyHeader::SetData(uint16_t data)
   m_data = data;
 }
 
+void MyHeader::SetStringData(std::string data)
+{
+  s_data = data;
+}
+
 uint16_t
 MyHeader::GetData(void) const
 {
   return m_data;
 }
 
+std::string
+MyHeader::GetStringData(void) const
+{
+  return s_data;
+}
 class master : public Application
 {
 public:
   master(uint16_t port, Ipv4InterfaceContainer &ip, Ipv4InterfaceContainer &mappers_ip);
   virtual ~master();
+  Ptr<Socket> socket1;
+  Ptr<Socket> socket2;
+  Ptr<Socket> socket3;
 
 private:
   virtual void StartApplication(void);
@@ -200,30 +222,35 @@ private:
 class client : public Application
 {
 public:
-  client(uint16_t port, Ipv4InterfaceContainer &ip);
+  client(uint16_t port, Ipv4InterfaceContainer &ip, Ipv4InterfaceContainer &my_ip);
   virtual ~client();
-
-private:
-  virtual void StartApplication(void);
-
-  uint16_t port;
-  Ptr<Socket> socket;
-  Ipv4InterfaceContainer ip;
-};
-
-class mapper : public Application
-{
-public:
-  mapper(uint16_t id, uint16_t port, Ipv4InterfaceContainer &ip, std::map<int, std::string> mapp);
-  virtual ~mapper();
 
 private:
   virtual void StartApplication(void);
   void HandleRead(Ptr<Socket> socket);
 
+  uint16_t port;
+  Ptr<Socket> socket;
+  Ptr<Socket> sock_recive;
+  Ipv4InterfaceContainer ip;
+  Ipv4InterfaceContainer my_ip;
+};
+
+class mapper : public Application
+{
+public:
+  mapper(uint16_t id, uint16_t port, Ipv4InterfaceContainer &ip, Ipv4InterfaceContainer &client_ip, std::map<int, std::string> mapp);
+  virtual ~mapper();
+  Ptr<Socket> masster_socket;
+
+private:
+  virtual void StartApplication(void);
+  void HandleRead(Ptr<Socket> masster_socket);
+
   uint16_t id;
   uint16_t port;
   Ipv4InterfaceContainer ip;
+  Ipv4InterfaceContainer client_ip;
   std::map<int, std::string> mapp;
   Ptr<Socket> socket;
 };
@@ -231,9 +258,9 @@ private:
 int main(int argc, char *argv[])
 {
   double error = 0.000001;
-  string bandwidth = "1Mbps";
+  string bandwidth = "10Mbps";
   bool verbose = true;
-  double duration = 20.0;
+  double duration = 10.0;
   bool tracing = false;
   std::map<int, std::string> Mapper1map;
   std::map<int, std::string> Mapper2map;
@@ -357,7 +384,7 @@ int main(int argc, char *argv[])
   uint16_t id1 = 0;
   uint16_t id2 = 1;
   uint16_t id3 = 2;
-  Ptr<client> clientApp = CreateObject<client>(port, staNodesMasterInterface);
+  Ptr<client> clientApp = CreateObject<client>(port, staNodesMasterInterface, staNodeClientInterface);
   wifiStaNodeClient.Get(0)->AddApplication(clientApp);
   clientApp->SetStartTime(Seconds(0.0));
   clientApp->SetStopTime(Seconds(duration));
@@ -368,20 +395,38 @@ int main(int argc, char *argv[])
   masterApp->SetStartTime(Seconds(0.0));
   masterApp->SetStopTime(Seconds(duration));
 
-  Ptr<mapper> mapperApp1 = CreateObject<mapper>(id1, port, staNodesMapperInterface, Mapper1map);
+  Ptr<mapper> mapperApp1 = CreateObject<mapper>(id1, port, staNodesMapperInterface, staNodeClientInterface, Mapper1map);
   wifiStaNodeMapper.Get(0)->AddApplication(mapperApp1);
   mapperApp1->SetStartTime(Seconds(0.0));
   mapperApp1->SetStopTime(Seconds(duration));
 
-  Ptr<mapper> mapperApp2 = CreateObject<mapper>(id2, port, staNodesMapperInterface, Mapper2map);
+  Ptr<mapper> mapperApp2 = CreateObject<mapper>(id2, port, staNodesMapperInterface, staNodeClientInterface, Mapper2map);
   wifiStaNodeMapper.Get(1)->AddApplication(mapperApp2);
   mapperApp2->SetStartTime(Seconds(0.0));
   mapperApp2->SetStopTime(Seconds(duration));
 
-  Ptr<mapper> mapperApp3 = CreateObject<mapper>(id3, port, staNodesMapperInterface, Mapper3map);
+  Ptr<mapper> mapperApp3 = CreateObject<mapper>(id3, port, staNodesMapperInterface, staNodeClientInterface, Mapper3map);
   wifiStaNodeMapper.Get(2)->AddApplication(mapperApp3);
   mapperApp3->SetStartTime(Seconds(0.0));
   mapperApp3->SetStopTime(Seconds(duration));
+
+  Ptr<Socket> socket1 = Socket::CreateSocket(wifiStaNodeMaster.Get(0), TcpSocketFactory::GetTypeId());
+  InetSocketAddress address1 = InetSocketAddress(staNodesMapperInterface.GetAddress(0), port);
+  socket1->Connect(address1);
+
+  Ptr<Socket> socket2 = Socket::CreateSocket(wifiStaNodeMaster.Get(0), TcpSocketFactory::GetTypeId());
+  InetSocketAddress address2 = InetSocketAddress(staNodesMapperInterface.GetAddress(1), port);
+  socket2->Connect(address2);
+
+  Ptr<Socket> socket3 = Socket::CreateSocket(wifiStaNodeMaster.Get(0), TcpSocketFactory::GetTypeId());
+  InetSocketAddress address3 = InetSocketAddress(staNodesMapperInterface.GetAddress(2), port);
+  socket3->Connect(address3);
+  masterApp->socket1 = socket1;
+  masterApp->socket2 = socket2;
+  masterApp->socket3 = socket3;
+  mapperApp1->masster_socket = socket1;
+  mapperApp2->masster_socket = socket2;
+  mapperApp3->masster_socket = socket3;
 
   NS_LOG_INFO("Run Simulation");
 
@@ -389,8 +434,8 @@ int main(int argc, char *argv[])
   FlowMonitorHelper flowHelper;
   flowMonitor = flowHelper.InstallAll();
 
-  // ThroughputMonitor(&flowHelper, flowMonitor, error);
-  // AverageDelayMonitor(&flowHelper, flowMonitor, error);
+  ThroughputMonitor(&flowHelper, flowMonitor, error);
+  AverageDelayMonitor(&flowHelper, flowMonitor, error);
 
   Simulator::Stop(Seconds(duration));
   Simulator::Run();
@@ -398,7 +443,7 @@ int main(int argc, char *argv[])
   return 0;
 }
 
-client::client(uint16_t port, Ipv4InterfaceContainer &ip) : port(port), ip(ip)
+client::client(uint16_t port, Ipv4InterfaceContainer &ip, Ipv4InterfaceContainer &my_ip) : port(port), ip(ip), my_ip(my_ip)
 {
   std::srand(time(0));
 }
@@ -413,9 +458,8 @@ GenerateTraffic(Ptr<Socket> socket, uint16_t data)
   Ptr<Packet> packet = new Packet();
   MyHeader m;
   m.SetData(data);
-
   packet->AddHeader(m);
-  packet->Print(std::cout);
+  std::cout << "Sended Data:" << m.GetData() << std::endl;
   socket->Send(packet);
 
   Simulator::Schedule(Seconds(0.1), &GenerateTraffic, socket, rand() % 26);
@@ -426,8 +470,26 @@ void client::StartApplication(void)
   Ptr<Socket> sock = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
   InetSocketAddress sockAddr(ip.GetAddress(0), port);
   sock->Connect(sockAddr);
-
   GenerateTraffic(sock, 0);
+  sock_recive = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
+  InetSocketAddress sockAddr2(my_ip.GetAddress(0), port);
+  sock_recive->Bind(sockAddr2);
+  sock_recive->SetRecvCallback(MakeCallback(&client::HandleRead, this));
+}
+
+void client::HandleRead(Ptr<Socket> sock_recive)
+{
+  Ptr<Packet> packet;
+  while ((packet = sock_recive->Recv()))
+  {
+    if (packet->GetSize() == 0)
+    {
+      break;
+    }
+    MyHeader destinationHeader;
+    packet->RemoveHeader(destinationHeader);
+    std::cout << "Received Data:" << std::string(1, static_cast<char>(destinationHeader.GetData())) << std::endl;
+  }
 }
 
 master::master(uint16_t port, Ipv4InterfaceContainer &ip, Ipv4InterfaceContainer &mappers_ip)
@@ -445,11 +507,10 @@ void master::StartApplication(void)
   socket = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
   InetSocketAddress local = InetSocketAddress(ip.GetAddress(0), port);
   socket->Bind(local);
-
   socket->SetRecvCallback(MakeCallback(&master::HandleRead, this));
 }
 
-mapper::mapper(uint16_t id, uint16_t port, Ipv4InterfaceContainer &ip, std::map<int, std::string> mapp) : id(id), port(port), ip(ip), mapp(mapp)
+mapper::mapper(uint16_t id, uint16_t port, Ipv4InterfaceContainer &ip, Ipv4InterfaceContainer &client_ip, std::map<int, std::string> mapp) : id(id), port(port), ip(ip), client_ip(client_ip), mapp(mapp)
 {
   std::srand(time(0));
 }
@@ -460,18 +521,14 @@ mapper::~mapper()
 
 void mapper::StartApplication(void)
 {
-  socket = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
-  InetSocketAddress local = InetSocketAddress(ip.GetAddress(id), port);
-  socket->Bind(local);
-  socket->Listen();
-  socket->SetRecvCallback(MakeCallback(&mapper::HandleRead, this));
+  masster_socket->SetRecvCallback(MakeCallback(&mapper::HandleRead, this));
 }
 
-void mapper::HandleRead(Ptr<Socket> socket)
+void mapper::HandleRead(Ptr<Socket> masster_socket)
 {
   Ptr<Packet> packet;
 
-  while ((packet = socket->Recv()))
+  while ((packet = masster_socket->Recv()))
   {
     if (packet->GetSize() == 0)
     {
@@ -482,8 +539,17 @@ void mapper::HandleRead(Ptr<Socket> socket)
     packet->RemoveHeader(destinationHeader);
     uint16_t data = destinationHeader.GetData();
     std::string decoded_data = mapp[data];
-    std::cout << decoded_data << std::endl;
-    destinationHeader.Print(std::cout);
+    if (decoded_data.size() > 0)
+    {
+      Ptr<Socket> sock = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
+      InetSocketAddress sockAddr(client_ip.GetAddress(0), port);
+      sock->Connect(sockAddr);
+      Ptr<Packet> new_packet = new Packet();
+      MyHeader m;
+      m.SetData(static_cast<int>(decoded_data[0]));
+      new_packet->AddHeader(m);
+      sock->Send(new_packet);
+    }
   }
 }
 
@@ -496,13 +562,8 @@ void master::HandleRead(Ptr<Socket> socket)
     {
       break;
     }
-    for (uint32_t i = 0; i < 3; i++)
-    {
-      Ptr<Socket> mapperSocket =
-          Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
-      InetSocketAddress remote = InetSocketAddress(mappers_ip.GetAddress(i), port);
-      mapperSocket->Connect(remote);
-      mapperSocket->Send(packet);
-    }
+    socket1->Send(packet);
+    socket2->Send(packet);
+    socket3->Send(packet);
   }
 }
