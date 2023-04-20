@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string>
 #include <fstream>
+#include <map>
 
 #include "ns3/core-module.h"
 #include "ns3/point-to-point-module.h"
@@ -213,15 +214,17 @@ private:
 class mapper : public Application
 {
 public:
-  mapper(uint16_t port, Ipv4InterfaceContainer &ip);
+  mapper(uint16_t id, uint16_t port, Ipv4InterfaceContainer &ip, std::map<int, std::string> mapp);
   virtual ~mapper();
 
 private:
   virtual void StartApplication(void);
   void HandleRead(Ptr<Socket> socket);
 
+  uint16_t id;
   uint16_t port;
   Ipv4InterfaceContainer ip;
+  std::map<int, std::string> mapp;
   Ptr<Socket> socket;
 };
 
@@ -232,6 +235,35 @@ int main(int argc, char *argv[])
   bool verbose = true;
   double duration = 20.0;
   bool tracing = false;
+  std::map<int, std::string> Mapper1map;
+  std::map<int, std::string> Mapper2map;
+  std::map<int, std::string> Mapper3map;
+  Mapper1map.insert(std::make_pair(0, "a"));
+  Mapper1map.insert(std::make_pair(1, "b"));
+  Mapper1map.insert(std::make_pair(2, "c"));
+  Mapper1map.insert(std::make_pair(3, "d"));
+  Mapper1map.insert(std::make_pair(4, "e"));
+  Mapper1map.insert(std::make_pair(5, "f"));
+  Mapper1map.insert(std::make_pair(6, "g"));
+  Mapper1map.insert(std::make_pair(7, "h"));
+  Mapper1map.insert(std::make_pair(8, "i"));
+  Mapper2map.insert(std::make_pair(9, "j"));
+  Mapper2map.insert(std::make_pair(10, "k"));
+  Mapper2map.insert(std::make_pair(11, "l"));
+  Mapper2map.insert(std::make_pair(12, "m"));
+  Mapper2map.insert(std::make_pair(13, "n"));
+  Mapper2map.insert(std::make_pair(14, "o"));
+  Mapper2map.insert(std::make_pair(15, "p"));
+  Mapper2map.insert(std::make_pair(16, "q"));
+  Mapper2map.insert(std::make_pair(17, "r"));
+  Mapper3map.insert(std::make_pair(18, "s"));
+  Mapper3map.insert(std::make_pair(19, "t"));
+  Mapper3map.insert(std::make_pair(20, "u"));
+  Mapper3map.insert(std::make_pair(21, "v"));
+  Mapper3map.insert(std::make_pair(22, "w"));
+  Mapper3map.insert(std::make_pair(23, "x"));
+  Mapper3map.insert(std::make_pair(24, "y"));
+  Mapper3map.insert(std::make_pair(25, "z"));
 
   srand(time(NULL));
 
@@ -322,7 +354,9 @@ int main(int argc, char *argv[])
   Ipv4GlobalRoutingHelper::PopulateRoutingTables();
 
   uint16_t port = 1102;
-
+  uint16_t id1 = 0;
+  uint16_t id2 = 1;
+  uint16_t id3 = 2;
   Ptr<client> clientApp = CreateObject<client>(port, staNodesMasterInterface);
   wifiStaNodeClient.Get(0)->AddApplication(clientApp);
   clientApp->SetStartTime(Seconds(0.0));
@@ -334,17 +368,17 @@ int main(int argc, char *argv[])
   masterApp->SetStartTime(Seconds(0.0));
   masterApp->SetStopTime(Seconds(duration));
 
-  Ptr<mapper> mapperApp1 = CreateObject<mapper>(port, staNodesMasterInterface);
+  Ptr<mapper> mapperApp1 = CreateObject<mapper>(id1, port, staNodesMapperInterface, Mapper1map);
   wifiStaNodeMapper.Get(0)->AddApplication(mapperApp1);
   mapperApp1->SetStartTime(Seconds(0.0));
   mapperApp1->SetStopTime(Seconds(duration));
 
-  Ptr<mapper> mapperApp2 = CreateObject<mapper>(port, staNodesMasterInterface);
+  Ptr<mapper> mapperApp2 = CreateObject<mapper>(id2, port, staNodesMapperInterface, Mapper2map);
   wifiStaNodeMapper.Get(1)->AddApplication(mapperApp2);
   mapperApp2->SetStartTime(Seconds(0.0));
   mapperApp2->SetStopTime(Seconds(duration));
 
-  Ptr<mapper> mapperApp3 = CreateObject<mapper>(port, staNodesMasterInterface);
+  Ptr<mapper> mapperApp3 = CreateObject<mapper>(id3, port, staNodesMapperInterface, Mapper3map);
   wifiStaNodeMapper.Get(2)->AddApplication(mapperApp3);
   mapperApp3->SetStartTime(Seconds(0.0));
   mapperApp3->SetStopTime(Seconds(duration));
@@ -355,8 +389,8 @@ int main(int argc, char *argv[])
   FlowMonitorHelper flowHelper;
   flowMonitor = flowHelper.InstallAll();
 
-  ThroughputMonitor(&flowHelper, flowMonitor, error);
-  AverageDelayMonitor(&flowHelper, flowMonitor, error);
+  // ThroughputMonitor(&flowHelper, flowMonitor, error);
+  // AverageDelayMonitor(&flowHelper, flowMonitor, error);
 
   Simulator::Stop(Seconds(duration));
   Simulator::Run();
@@ -415,7 +449,7 @@ void master::StartApplication(void)
   socket->SetRecvCallback(MakeCallback(&master::HandleRead, this));
 }
 
-mapper::mapper(uint16_t port, Ipv4InterfaceContainer &ip) : port(port), ip(ip)
+mapper::mapper(uint16_t id, uint16_t port, Ipv4InterfaceContainer &ip, std::map<int, std::string> mapp) : id(id), port(port), ip(ip), mapp(mapp)
 {
   std::srand(time(0));
 }
@@ -426,8 +460,8 @@ mapper::~mapper()
 
 void mapper::StartApplication(void)
 {
-  socket = Socket::CreateSocket(GetNode(), TcpSocketFactory::GetTypeId());
-  InetSocketAddress local = InetSocketAddress(ip.GetAddress(0), port);
+  socket = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
+  InetSocketAddress local = InetSocketAddress(ip.GetAddress(id), port);
   socket->Bind(local);
   socket->Listen();
   socket->SetRecvCallback(MakeCallback(&mapper::HandleRead, this));
@@ -446,6 +480,9 @@ void mapper::HandleRead(Ptr<Socket> socket)
 
     MyHeader destinationHeader;
     packet->RemoveHeader(destinationHeader);
+    uint16_t data = destinationHeader.GetData();
+    std::string decoded_data = mapp[data];
+    std::cout << decoded_data << std::endl;
     destinationHeader.Print(std::cout);
   }
 }
@@ -462,7 +499,7 @@ void master::HandleRead(Ptr<Socket> socket)
     for (uint32_t i = 0; i < 3; i++)
     {
       Ptr<Socket> mapperSocket =
-          Socket::CreateSocket(GetNode(), TcpSocketFactory::GetTypeId());
+          Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
       InetSocketAddress remote = InetSocketAddress(mappers_ip.GetAddress(i), port);
       mapperSocket->Connect(remote);
       mapperSocket->Send(packet);
